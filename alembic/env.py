@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.config import settings
 from app.core.database_con import Base
+from app.models.oauth_client import OAuthClient
+from app.models.user import User
 
 sys.path.insert(0, dirname(dirname(abspath(__file__))))
 
