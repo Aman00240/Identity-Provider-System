@@ -16,7 +16,7 @@ async def register_client(
     client_repo: OAuthClientRepository = Depends(get_oauth_client_repo),
 ):
     try:
-        new_client = client_repo.create_client(
+        new_client = await client_repo.create_client(
             client_id=client_in.client_id,
             client_secret=client_in.client_secret,
             redirect_uris=[str(uri) for uri in client_in.redirect_uris],
