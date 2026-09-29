@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.routers import oauth_clients, users
+from app.api.routers import auth, oauth_clients, users
 
 app = FastAPI(
     title="Identity Provider API",
@@ -10,6 +10,7 @@ app = FastAPI(
 
 app.include_router(users.router)
 app.include_router(oauth_clients.router)
+app.include_router(auth.router)
 
 
 @app.get("/health", tags=["System"])
