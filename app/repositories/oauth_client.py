@@ -26,7 +26,7 @@ class OAuthClientRepository:
 
         return new_client
 
-    async def get_client_by_client_id(self, client_id: str) -> OAuthClient | None:
+    async def get_client_by_id(self, client_id: str) -> OAuthClient | None:
         stmt = select(OAuthClient).where(OAuthClient.client_id == client_id)
         result = await self.session.execute(stmt)
 
