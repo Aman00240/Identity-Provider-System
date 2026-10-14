@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
-from app.api.dependencies import get_user_repo
+from app.api.dependencies import get_current_user, get_user_repo
 from app.repositories.user import UserRepository
 from app.schemas.user import UserCreate, UserResponse
 
@@ -30,3 +30,9 @@ async def register_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Database integrity error"
         )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_my_profile(current_user=Depends(get_current_user)):
+
+    return current_user

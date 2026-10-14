@@ -3,11 +3,10 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 
 from app.api.dependencies import get_oauth_client_repo, get_user_repo
-from app.core.cache import save_authorization_code
+from app.core.cache import get_and_delete_authorization_code, save_authorization_code
 from app.core.security import create_access_token, verify_password
 from app.repositories.oauth_client import OAuthClientRepository
 from app.repositories.user import UserRepository
@@ -17,31 +16,51 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.post("/token")
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    user_repo: UserRepository = Depends(get_user_repo),
+async def exchange_code_for_token(
+    grant_type: str = Form(...),
+    code: str = Form(...),
+    redirect_uri: str = Form(...),
+    client_id: str = Form(...),
+    client_secret: str = Form(...),
+    client_repo: OAuthClientRepository = Depends(get_oauth_client_repo),
 ):
-    user = await user_repo.get_user_by_email(form_data.username)
+    if grant_type != "authorization_code":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="unsupported_grant_type"
+        )
+    client = await client_repo.get_client_by_id(client_id)
 
-    if not user:
+    if not client:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Invalid client credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    if not verify_password(form_data.password, user.hashed_password):
+    if not verify_password(client_secret, client.client_secret_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Invalid client credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    redis_payload = await get_and_delete_authorization_code(code)
 
-    jwt_payload = {"sub": str(user.id), "aud": "test_client_id"}
+    if not redis_payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired authorization code",
+        )
 
-    token = create_access_token(data=jwt_payload)
+    if redis_payload["client_id"] != client_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authorization code does not belong to this client",
+        )
 
-    return {"access_token": token, "token_type": "bearer"}
+    jwt_payload = {"sub": redis_payload["user_id"], "aud": client_id}
+
+    access_token = create_access_token(data=jwt_payload)
+
+    return {"access_token": access_token, "token_type": "bearer", "expires_in": 3600}
 
 
 @router.get("/authorize", response_class=HTMLResponse)
